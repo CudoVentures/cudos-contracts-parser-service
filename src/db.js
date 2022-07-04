@@ -10,14 +10,16 @@ const files = require('./files');
 let parsingResultsCollection, schemasBucket;
 
 module.exports.setParsingResultError = async (sourceID, err) => {
-    parsingResultsCollection.updateOne({ '_id': sourceID }, {
-        error: err,
+    parsingResultsCollection.updateOne({ '_id': sourceID }, { 
+        $set: {
+            error: err,
+        }
     }).catch((e) => {
         console.error(`failed setting error for ${sourceID} to ${err} with error: ${e}`);
     });
 }
 
-module.exports.storeSchema = async (projectPath, sourceID) => {
+module.exports.storeSchema = async (projectPath, sourceID, contractAddress, msgs) => {
     let schemaFiles = await files.getFiles(path.join(projectPath, 'examples', 'schema', '/'));
 
     schemaFiles = schemaFiles.filter((value) => {
@@ -26,31 +28,41 @@ module.exports.storeSchema = async (projectPath, sourceID) => {
         }
     });
 
-    const timestamp = Math.floor(new Date().getTime() / 1000);
+    const timestamp = getTimestamp();
 
     let schemasIDs = [];
 
     for (const file of schemaFiles) {
         const filename = file['name'];
 
+        const funcName = matchFilenameToEntryFuncName(filename, msgs);
+
+        if (!funcName) {
+            throw `could not find entry function name for schema file ${filename}`;
+        }
+
         const uploadStream = schemasBucket.openUploadStream(`${timestamp}-${filename}`, {
             sourceID: sourceID,
-            timestamp: timestamp
+            address: contractAddress,
+            funcName: funcName,
+            timestamp: timestamp,
             // TODO: We can add username here
         });
-        
+
         const buffer = fs.readFileSync(file['path']);
 
         uploadStream.write(buffer);
         uploadStream.end();
-    
+
         schemasIDs.push(uploadStream.id.toString());
     }
 
-    parsingResultsCollection.updateOne({ '_id': sourceID }, { $set: {
-        schemas: schemasIDs,
-        parsed: true,
-    }});
+    parsingResultsCollection.updateOne({ '_id': sourceID }, { 
+        $set: {
+            schemas: schemasIDs,
+            parsed: true,
+        }
+    });
 }
 
 module.exports.connectDB = async (dbName, sourcesBucketName, schemasBucketName, parsingResultsCollName) => {
@@ -70,4 +82,18 @@ module.exports.connectDB = async (dbName, sourcesBucketName, schemasBucketName, 
             visibility: Number(process.env.QUEUE_ITEM_VISIBILITY),
         })
     };
+}
+
+const getTimestamp = () => {
+    return Math.floor(new Date().getTime() / 1000);
+}
+
+// TODO: Can be made smarter
+
+const matchFilenameToEntryFuncName = (filename, msgs) => {
+    for (const msg of msgs) {
+        if (msg['type'].toUpperCase() == filename.replace('.json', '').replace('_', '').toUpperCase()) {
+            return msg['funcName'];
+        }
+    }
 }

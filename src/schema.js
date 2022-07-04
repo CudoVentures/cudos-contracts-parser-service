@@ -194,7 +194,8 @@ module.exports.getSchemaInfo = async (projectPath) => {
 
             msgs.push({
                 type: funcMsgType,
-                usePath: funcMsgTypeUsePath
+                usePath: funcMsgTypeUsePath,
+                funcName: funcName,
             });
         }
     });

@@ -28,7 +28,7 @@ db.connectDB('contracts_scan', 'sources', 'schemas', 'parsing_results').then((db
 });
 
 const workLoop = async () => {
-    let extractPath = '', sourceID;
+    let extractPath = '', sourceID, contractAddress;
 
     try {
         if (isDBConnected === false) {
@@ -50,6 +50,8 @@ const workLoop = async () => {
         if (entries.length == 0) {
             throw `source ${sourceID} not found`;
         }
+
+        contractAddress = entries[0]['metadata']['address'];
     
         const sourceSavePath = files.getSourceSavePath();
         
@@ -79,7 +81,7 @@ const workLoop = async () => {
         schema.patchCargo(extractPath);
         schema.generateSchema(extractPath, res.msgs);
         schema.executeSchema(extractPath);
-        await db.storeSchema(extractPath, sourceID);
+        await db.storeSchema(extractPath, sourceID, contractAddress, res.msgs);
 
         await parsingQueue.ack(queueItem.ack);
 
@@ -88,8 +90,8 @@ const workLoop = async () => {
     } catch (e) {
         console.error(`processing failed: ${e}`);
 
-        await db.setParsingResultError(sourceID, JSON.stringify(e)).catch(() => {
-            console.error(`error while trying to set error result for '${sourceID}'`);
+        await db.setParsingResultError(sourceID, JSON.stringify(e)).catch((e) => {
+            console.error(`error while trying to set error result for '${sourceID}: ${e}'`);
         });
 
         // TODO: Remove item from queue after X tries

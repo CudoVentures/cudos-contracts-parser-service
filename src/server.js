@@ -28,7 +28,7 @@ db.connectDB('contracts_scan', 'sources', 'schemas', 'parsing_results').then((db
 });
 
 const workLoop = async () => {
-    let extractPath = '', sourceID, contractAddress;
+    let extractPath, sourceID, contractAddress;
 
     try {
         if (isDBConnected === false) {

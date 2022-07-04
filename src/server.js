@@ -90,9 +90,7 @@ const workLoop = async () => {
     } catch (e) {
         console.error(`processing failed: ${e}`);
 
-        await db.setParsingResultError(sourceID, JSON.stringify(e)).catch((e) => {
-            console.error(`error while trying to set error result for '${sourceID}: ${e}'`);
-        });
+        await db.setParsingResultError(sourceID, JSON.stringify(e));
 
         // TODO: Remove item from queue after X tries
 

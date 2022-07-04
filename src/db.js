@@ -10,7 +10,7 @@ const files = require('./files');
 let parsingResultsCollection, schemasBucket;
 
 module.exports.setParsingResultError = async (sourceID, err) => {
-    parsingResultsCollection.updateOne({ '_id': sourceID }, { 
+    await parsingResultsCollection.updateOne({ _id: sourceID.toString() }, { 
         $set: {
             error: err,
         }
@@ -30,7 +30,7 @@ module.exports.storeSchema = async (projectPath, sourceID, contractAddress, msgs
 
     const timestamp = getTimestamp();
 
-    let schemasIDs = [];
+    let schemas = [];
 
     for (const file of schemaFiles) {
         const filename = file['name'];
@@ -54,12 +54,15 @@ module.exports.storeSchema = async (projectPath, sourceID, contractAddress, msgs
         uploadStream.write(buffer);
         uploadStream.end();
 
-        schemasIDs.push(uploadStream.id.toString());
+        schemas.push({
+            id: uploadStream.id.toString(),
+            funcName: funcName,
+        });
     }
 
-    parsingResultsCollection.updateOne({ '_id': sourceID }, { 
+    await parsingResultsCollection.updateOne({ _id: sourceID.toString() }, { 
         $set: {
-            schemas: schemasIDs,
+            schemas: schemas,
             parsed: true,
         }
     });

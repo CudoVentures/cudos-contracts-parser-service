@@ -98,7 +98,10 @@ const workLoop = async () => {
 
     } finally {
         setTimeout(workLoop, Number(process.env.QUEUE_CHECK_INTERVAL));
-        files.cleanup(extractPath);
+
+        if (extractPath) {
+            files.cleanup(extractPath);
+        }
     }
 }
 

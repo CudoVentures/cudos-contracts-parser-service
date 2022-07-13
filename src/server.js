@@ -28,7 +28,7 @@ db.connectDB('contracts_scan', 'sources', 'schemas', 'parsing_results').then((db
 });
 
 const workLoop = async () => {
-    let extractPath, sourceID, contractAddress, queueItem;
+    let extractPath, sourceID, queueItem;
 
     try {
         if (isDBConnected === false) {
@@ -51,7 +51,7 @@ const workLoop = async () => {
             throw `source ${sourceID} not found`;
         }
 
-        contractAddress = entries[0]['metadata']['address'];
+        const contractAddress = entries[0]['metadata']['address'];
     
         const sourceSavePath = files.getSourceSavePath();
         

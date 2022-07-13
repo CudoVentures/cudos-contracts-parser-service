@@ -28,7 +28,7 @@ db.connectDB('contracts_scan', 'sources', 'schemas', 'parsing_results').then((db
 });
 
 const workLoop = async () => {
-    let extractPath, sourceID, contractAddress;
+    let extractPath, sourceID, contractAddress, queueItem;
 
     try {
         if (isDBConnected === false) {
@@ -41,7 +41,7 @@ const workLoop = async () => {
             return;
         }
 
-        const queueItem = await parsingQueue.get();
+        queueItem = await parsingQueue.get();
         sourceID = new ObjectID(queueItem.payload);
         
         const cursor = await sourcesBucket.find({ _id: sourceID });
@@ -83,8 +83,6 @@ const workLoop = async () => {
         schema.executeSchema(extractPath);
         await db.storeSchema(extractPath, sourceID, contractAddress, res.msgs);
 
-        await parsingQueue.ack(queueItem.ack);
-
         console.log(`Successfully parsed ${sourceID}`);
 
     } catch (e) {
@@ -92,9 +90,17 @@ const workLoop = async () => {
 
         await db.setParsingResultError(sourceID, JSON.stringify(e));
 
-        // TODO: Remove item from queue after X tries
-
     } finally {
+
+        if (queueItem) {
+            try {
+                // TODO: Remove item from queue only after X tries
+                await parsingQueue.ack(queueItem.ack);
+            } catch (e) {
+                console.error(`failed to acknowledge ${sourceID} ${queueItem.ack}`);
+            }
+        }
+
         setTimeout(workLoop, Number(process.env.QUEUE_CHECK_INTERVAL));
 
         if (extractPath) {

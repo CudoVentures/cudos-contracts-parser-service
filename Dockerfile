@@ -21,6 +21,7 @@ RUN apt-get install nodejs -y
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 
 RUN echo 'source $HOME/.cargo/env' >> $HOME/.bashrc
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Compile Rust2JSON
 WORKDIR /rust/src

@@ -7,16 +7,24 @@ const mongoDbQueue = require('@openwar/mongodb-queue');
 const files = require('./files');
 
 
-let parsingResultsCollection, schemasBucket;
+let parsingQueue, parsingResultsCollection, schemasBucket;
 
-module.exports.setParsingResultError = async (sourceID, err) => {
-    await parsingResultsCollection.updateOne({ _id: sourceID.toString() }, { 
-        $set: {
-            error: err,
-        }
-    }).catch((e) => {
-        console.error(`failed setting error for ${sourceID} to ${err} with error: ${e}`);
-    });
+
+module.exports.setParsingResult = async (sourceID, result) => {
+    try {
+        await parsingResultsCollection.updateOne({ _id: sourceID.toString() }, { $set: result });
+    } catch (e) {
+        throw `failed setting result for ${sourceID} to ${result} with error: ${e}`;
+    }
+}
+
+module.exports.removeItemFromQueue = async (sourceID, queueItem) => {
+    try {
+        // TODO: Remove item from queue only after X tries
+        await parsingQueue.ack(queueItem.ack);
+    } catch (e) {
+        console.error(`failed to acknowledge ${sourceID} ${queueItem.ack}`);
+    }
 }
 
 module.exports.storeSchema = async (projectPath, sourceID, contractAddress, msgs) => {
@@ -60,12 +68,7 @@ module.exports.storeSchema = async (projectPath, sourceID, contractAddress, msgs
         });
     }
 
-    await parsingResultsCollection.updateOne({ _id: sourceID.toString() }, { 
-        $set: {
-            schemas: schemas,
-            parsed: true,
-        }
-    });
+    return schemas;
 }
 
 module.exports.connectDB = async (dbName, sourcesBucketName, schemasBucketName, parsingResultsCollName) => {
@@ -76,14 +79,15 @@ module.exports.connectDB = async (dbName, sourcesBucketName, schemasBucketName, 
 
     const db = client.db(dbName);
     
+    parsingQueue = mongoDbQueue(db, 'parsing-queue', {
+        visibility: Number(process.env.QUEUE_ITEM_VISIBILITY),
+    });
     parsingResultsCollection = db.collection(parsingResultsCollName);
     schemasBucket = new GridFSBucket(db, {bucketName: schemasBucketName});
 
     return {
         sourcesBucket: new GridFSBucket(db, {bucketName: sourcesBucketName}),
-        parsingQueue: mongoDbQueue(db, 'parsing-queue', {
-            visibility: Number(process.env.QUEUE_ITEM_VISIBILITY),
-        })
+        parsingQueue: parsingQueue,
     };
 }
 
@@ -95,7 +99,7 @@ const getTimestamp = () => {
 
 const matchFilenameToEntryFuncName = (filename, msgs) => {
     for (const msg of msgs) {
-        if (msg['type'].toUpperCase() == filename.replace('.json', '').replace('_', '').toUpperCase()) {
+        if (msg['type'].toUpperCase() == filename.replace('.json', '').replaceAll('_', '').toUpperCase()) {
             return msg['funcName'];
         }
     }

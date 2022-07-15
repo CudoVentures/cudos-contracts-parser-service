@@ -217,3 +217,22 @@ module.exports.executeSchema = (projectPath) => {
         throw e.stderr.toString();
     }
 }
+
+module.exports.getCratePath = (projectPath, crateName) => {
+    let output;
+
+    try {
+        output = childProc.execSync(`cargo pkgid ${crateName}`, {
+            cwd: projectPath,
+            timeout: 10000,
+        });
+    } catch (e) {
+        console.error(e);
+        throw e.stderr.toString();
+    }
+
+    output = output.toString();
+    output = output.replace('file://', '');
+
+    return output.substring(0, output.lastIndexOf('#'));
+}

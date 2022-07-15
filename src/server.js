@@ -4,7 +4,7 @@ const extract = require('extract-zip');
 const { ObjectID } = require('bson');
 
 const config = require('./config');
-const db = require('./db');
+const { connectDB, storeSchema, setParsingResult, removeItemFromQueue } = require('./db');
 const files = require('./files');
 const schema = require('./schema');
 
@@ -16,7 +16,7 @@ let isDBConnected = false;
 // TODO: Refactor and move these into db.js
 let sourcesBucket, parsingQueue;
 
-db.connectDB('contracts_scan', 'sources', 'schemas', 'parsing_results').then((dbInfo) => {
+connectDB('contracts_scan', 'sources', 'schemas', 'parsing_results').then((dbInfo) => {
     sourcesBucket = dbInfo.sourcesBucket;
     parsingQueue = dbInfo.parsingQueue;
 
@@ -70,35 +70,45 @@ const workLoop = async () => {
         await extract(sourceSavePath, { dir: extractPath });
 
         console.log(`extracted to ${extractPath}`);
+        
+        let projectPath = extractPath;
 
-        let res = await schema.getSchemaInfo(extractPath);
+        if ('crateName' in entries[0]['metadata']) {
+            projectPath = schema.getCratePath(extractPath, entries[0]['metadata']['crateName']);
+        }
+
+        let res = await schema.getSchemaInfo(projectPath);
 
         if (res.msgs.length === 0) {
             console.log(`no messages found for processing in ${res.crateName}`);
             return;
         }
 
-        schema.patchCargo(extractPath);
-        schema.generateSchema(extractPath, res.msgs);
-        schema.executeSchema(extractPath);
-        await db.storeSchema(extractPath, sourceID, contractAddress, res.msgs);
+        schema.patchCargo(projectPath);
+        schema.generateSchema(projectPath, res.msgs);
+        schema.executeSchema(projectPath);
+        
+        const schemas = await storeSchema(projectPath, sourceID, contractAddress, res.msgs);
+        await setParsingResult(sourceID, {
+            schemas: schemas,
+            parsed: true,
+        });
 
         console.log(`Successfully parsed ${sourceID}`);
 
     } catch (e) {
         console.error(`processing failed: ${e}`);
 
-        await db.setParsingResultError(sourceID, JSON.stringify(e));
+        try {
+            await setParsingResult(sourceID, { error: JSON.stringify(e) });
+        } catch (e) {
+            console.error(e);
+        }
 
     } finally {
 
         if (queueItem) {
-            try {
-                // TODO: Remove item from queue only after X tries
-                await parsingQueue.ack(queueItem.ack);
-            } catch (e) {
-                console.error(`failed to acknowledge ${sourceID} ${queueItem.ack}`);
-            }
+            await removeItemFromQueue(sourceID, queueItem);
         }
 
         setTimeout(workLoop, Number(process.env.QUEUE_CHECK_INTERVAL));

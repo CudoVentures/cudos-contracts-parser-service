@@ -37,7 +37,6 @@ const workLoop = async () => {
         }
 
         if (await parsingQueue.size() == 0) {
-            console.log('nothing in queue');
             return;
         }
 

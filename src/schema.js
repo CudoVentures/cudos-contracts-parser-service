@@ -8,8 +8,6 @@ const _ = require('lodash');
 const files = require('./files');
 
 
-const ATTRIBUTE_PATH = ['fn', 'attrs', 0, 'path', 'segments', 0, 'ident'];
-
 const parseCargo = (projectPath) => {
     const cargoData = fs.readFileSync(path.join(projectPath, 'Cargo.toml'));
     return toml.parse(cargoData.toString());
@@ -72,11 +70,34 @@ const getTypeUsePath = (parsedSource, typeName) => {
     }
 }
 
+const searchForKeyValue = (obj, key, value) => {
+    for (const k in obj) {
+        if (typeof obj[k] === 'object' && obj[k] !== null) {
+            if (searchForKeyValue(obj[k], key, value) === true) {
+                return true;
+            }
+
+            continue;
+        }
+
+        if (obj.hasOwnProperty(k) && k === key && obj[k] == value) {
+            return true;
+        }
+    }
+}
+
+const isEntryPointFunc = (attrs) => {
+    if (!attrs) {
+        return false;
+    }
+    return searchForKeyValue(attrs, 'ident', 'entry_point');
+}
+
 const getEntryFuncMsgType = (parsedSource, funcName) => {
     let msgType;
 
     for (const item of parsedSource['items']) {
-        if (_.get(item, ['fn', 'vis']) != 'pub' || _.get(item, ['fn', 'ident']) != funcName || _.get(item, ATTRIBUTE_PATH) != 'entry_point') {
+        if (_.get(item, ['fn', 'vis']) != 'pub' || _.get(item, ['fn', 'ident']) != funcName || !isEntryPointFunc(_.get(item, ['fn', 'attrs']))) {
             continue;
         }
 

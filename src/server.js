@@ -79,8 +79,7 @@ const workLoop = async () => {
         let res = await schema.getSchemaInfo(projectPath);
 
         if (res.msgs.length === 0) {
-            console.log(`no messages found for processing in ${res.crateName}`);
-            return;
+            throw `no messages found for processing in ${res.crateName}`;
         }
 
         schema.patchCargo(projectPath);

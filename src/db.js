@@ -99,7 +99,8 @@ const getTimestamp = () => {
 
 const matchFilenameToEntryFuncName = (filename, msgs) => {
     for (const msg of msgs) {
-        if (msg['type'].toUpperCase() == filename.replace('.json', '').replaceAll('_', '').toUpperCase()) {
+        // TODO: Parse AS like pub use cw20::Cw20ExecuteMsg as ExecuteMsg;
+        if (filename.replace('.json', '').replaceAll('_', '').toUpperCase().includes(msg['type'].toUpperCase())) {
             return msg['funcName'];
         }
     }

@@ -25,6 +25,10 @@ const hasDevDependency = (parsedCargo, dependencyName) => {
     return dependencyName in parsedCargo['dev-dependencies'];
 }
 
+const hasDependency = (parsedCargo, dependencyName) => {
+    return dependencyName in parsedCargo['dependencies'];
+}
+
 const parseSource = (filePath) => {
     const jsonFilePath = filePath.replace('.rs', '.json');
 
@@ -136,6 +140,16 @@ const generateExportCalls = (msgs) => {
     return exportCalls;
 }
 
+const getSchemaContent = (schemaPath, schemaName) => {
+    schemaName = fs.readdirSync(schemaPath).find(f => f.includes(schemaName));
+    if (!schemaName) {
+        throw `failed to find schema content for ${schemaName}`;
+    }
+    const schemaFullPath = path.join(schemaPath, schemaName);
+    const fileContent = fs.readFileSync(schemaFullPath);
+    return JSON.stringify(JSON.parse(fileContent));
+}
+
 module.exports.patchCargo = (projectPath) => {
     const parsedCargo = parseCargo(projectPath);
     const cargoPath = path.join(projectPath, 'Cargo.toml');
@@ -144,7 +158,7 @@ module.exports.patchCargo = (projectPath) => {
         fs.appendFileSync(cargoPath, `${EOL}${EOL}[dev-dependencies]`);
     }
 
-    if (!hasDevDependency(parsedCargo, 'cosmwasm-schema')) {
+    if (!hasDevDependency(parsedCargo, 'cosmwasm-schema') && !hasDependency(parsedCargo, 'cosmwasm-schema')) {
         const cargo = fs.readFileSync(cargoPath).toString();
         const devDependenciesPos = cargo.indexOf('[dev-dependencies]');
 
@@ -256,4 +270,13 @@ module.exports.getCratePath = (projectPath, crateName) => {
     output = output.replace('file://', '');
 
     return output.substring(0, output.lastIndexOf('#'));
+}
+
+module.exports.getSchemaContents = async (projectPath) => {
+    const schemaPath = path.join(projectPath, 'examples', 'schema', '/')
+
+    return {
+        executeSchema: getSchemaContent(schemaPath, 'execute_msg'),
+        querySchema: getSchemaContent(schemaPath, 'query_msg')
+    }
 }

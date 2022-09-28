@@ -7,7 +7,7 @@ const mongoDbQueue = require('@openwar/mongodb-queue');
 const files = require('./files');
 
 
-let parsingQueue, parsingResultsCollection, schemasBucket;
+let parsingQueue, parsingResultsCollection, schemasBucket, publishQueue;
 
 
 module.exports.setParsingResult = async (sourceID, result) => {
@@ -23,7 +23,23 @@ module.exports.removeItemFromQueue = async (sourceID, queueItem) => {
         // TODO: Remove item from queue only after X tries
         await parsingQueue.ack(queueItem.ack);
     } catch (e) {
-        console.error(`failed to acknowledge ${sourceID} ${queueItem.ack}`);
+        throw `failed to acknowledge ${sourceID} ${queueItem.ack}`;
+    }
+}
+
+module.exports.addItemToPublishQueue = async (contractInfo) => {
+    try {
+        await publishQueue.add(contractInfo);
+    } catch (e) {
+        throw `failed to add codeID ${contractInfo.codeID} to publish queue`;
+    }
+}
+
+module.exports.removeItemFromPublishQueue = async (queueItem) => {
+    try {
+        await publishQueue.ack(queueItem.ack);
+    } catch (e) {
+        throw `failed to remove ${queueItem.payload} from publish queue`;
     }
 }
 
@@ -42,6 +58,10 @@ module.exports.storeSchema = async (projectPath, sourceID, contractAddress, msgs
 
     for (const file of schemaFiles) {
         const filename = file['name'];
+
+        if (!filename.includes('query_msg') && !filename.includes('execute_msg')) {
+            continue;
+        }
 
         const funcName = matchFilenameToEntryFuncName(filename, msgs);
 
@@ -84,10 +104,12 @@ module.exports.connectDB = async (dbName, sourcesBucketName, schemasBucketName, 
     });
     parsingResultsCollection = db.collection(parsingResultsCollName);
     schemasBucket = new GridFSBucket(db, {bucketName: schemasBucketName});
+    publishQueue = mongoDbQueue(db, 'publish-queue');
 
     return {
         sourcesBucket: new GridFSBucket(db, {bucketName: sourcesBucketName}),
         parsingQueue: parsingQueue,
+        publishQueue: publishQueue
     };
 }
 

@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google-cloud/pubsub": "^3.2.0",
     "@openwar/mongodb-queue": "^3.0.0",
     "dotenv": "^16.0.1",
     "extract-zip": "^2.0.1",
